@@ -1,5 +1,10 @@
 <?php
-header('Content-Type: application/json');
+// Set JSON header FIRST
+header('Content-Type: application/json; charset=utf-8');
+
+// Prevent any output before JSON
+ob_start();
+
 require_once '../db_connection.php';
 
 $method = $_SERVER['REQUEST_METHOD'];
