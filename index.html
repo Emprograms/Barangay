@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Barangay Bonbon Portal - Management System" />
+  <title>Barangay Bonbon Portal</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="auth-bg">
+  
+  <main class="container">
+    <!-- LOGIN PAGE -->
+    <section id="login-page" class="auth-page active">
+      <div class="auth-card">
+        <div class="auth-header">
+          <h1>🏛️ Barangay Bonbon</h1>
+          <p>Management Portal</p>
+        </div>
+        <h2>Welcome Back</h2>
+        <div id="login-error" class="alert alert-danger hidden"></div>
+        <form id="login-form">
+          <div class="form-group">
+            <label for="login-email">Email Address</label>
+            <input 
+              id="login-email" 
+              type="email" 
+              placeholder="your@example.com" 
+              required 
+              autocomplete="email"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input 
+              id="login-password" 
+              type="password" 
+              placeholder="Enter your password" 
+              required 
+              autocomplete="current-password"
+            />
+          </div>
+
+          <button type="button" id="login-btn" class="btn-submit">Login</button>
+        </form>
+
+        <div class="auth-footer">
+          Don't have an account? <a id="switch-to-register" href="#">Register here</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- REGISTER PAGE -->
+    <section id="register-page" class="auth-page">
+      <div class="auth-card">
+        <div class="auth-header">
+          <h1>🏛️ Barangay Bonbon</h1>
+          <p>Create Your Account</p>
+        </div>
+        <h2>Register</h2>
+        <div id="register-error" class="alert alert-danger hidden"></div>
+        <form id="register-form">
+          <div class="form-group">
+            <label for="register-name">Full Name</label>
+            <input 
+              id="register-name" 
+              type="text" 
+              placeholder="Juan Dela Cruz" 
+              required 
+              autocomplete="name"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="register-email">Email Address</label>
+            <input 
+              id="register-email" 
+              type="email" 
+              placeholder="your@example.com" 
+              required 
+              autocomplete="email"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="register-password">Password</label>
+            <input 
+              id="register-password" 
+              type="password" 
+              placeholder="Create a strong password" 
+              required 
+              autocomplete="new-password"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="register-confirm">Confirm Password</label>
+            <input 
+              id="register-confirm" 
+              type="password" 
+              placeholder="Confirm your password" 
+              required 
+              autocomplete="new-password"
+            />
+          </div>
+
+          <button type="button" id="register-btn" class="btn-submit">Register</button>
+        </form>
+
+        <div class="auth-footer">
+          Already have an account? <a id="switch-to-login" href="#">Login here</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- DASHBOARD (shown after login) -->
+    <section id="dashboard" class="hidden">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 class="logo">🏛️ Barangay Bonbon</h1>
+        </div>
+        <div class="topbar-center">
+          <h2 id="page-title">Barangay Officials</h2>
+        </div>
+        <div class="topbar-right">
+          <div class="user-menu">
+            <span id="user-name">User</span>
+            <button id="logout-btn" class="btn-logout">Logout</button>
+          </div>
+          <div class="hamburger" id="hamburger" title="Menu" aria-label="Menu">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+      </header>
+
+      <nav id="burger-menu" class="burger-menu hidden">
+        <ul>
+          <li data-view="officials">👥 Officials</li>
+          <li data-view="population">📊 Population</li>
+          <li data-view="updates">🎯 Accomplishments</li>
+          <li data-view="ongoing">🔨 Ongoing Projects</li>
+          <li data-view="permit">📋 Permit Cost</li>
+          <li data-view="clearance">✅ Barangay Clearance</li>
+          <li data-view="certificate">📄 Barangay Certificate</li>
+          <li data-view="cedula">🆔 Cedula</li>
+          <li data-view="indigency">📑 Certificate of Indigency</li>
+          <li data-view="my-requests">📥 My Requests</li>
+        </ul>
+      </nav>
+
+      <div class="dashboard-content">
+        <aside class="officials-sidebar" id="officials-list">
+          <!-- Officials populated by JS -->
+        </aside>
+
+        <section class="main-panel" id="panel">
+          <h2 id="panel-title">Welcome</h2>
+          <div id="panel-body">
+            <p>Welcome to the Barangay Bonbon Portal.</p>
+          </div>
+        </section>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
