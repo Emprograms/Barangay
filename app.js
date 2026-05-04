@@ -31,20 +31,33 @@ const app = (() => {
   const officialsList = document.getElementById('officials-list');
   
   async function apiCall(endpoint, method = 'GET', data = null) {
-    const options = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    };
-
-    if (data) {
-      options.body = JSON.stringify(data);
-    }
-
     try {
-      const response = await fetch(API_BASE + endpoint, options);
+      const options = {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include' 
+      };
+
+      if (data) {
+        options.body = JSON.stringify(data);
+      }
+
+      const url = API_BASE + endpoint;
+      console.log(`[${method}] ${url}`, data);
+
+      const response = await fetch(url, options);
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        console.error('Invalid response type:', contentType);
+        console.error('Response text:', await response.text());
+        return { success: false, error: 'Server returned invalid response' };
+      }
+
       const result = await response.json();
+      console.log(`Response [${response.status}]:`, result);
 
       if (!response.ok && response.status === 401) {
         logout();
@@ -81,16 +94,21 @@ const app = (() => {
       return;
     }
 
+    if (!validateEmail(email)) {
+      showError(registerError, 'Invalid email format');
+      return;
+    }
+
     const result = await apiCall('auth.php?action=register', 'POST', {
       name, email, password, confirm
     });
 
-    if (!result.success) {
-      showError(registerError, result.error || 'Registration failed');
+    if (!result || !result.success) {
+      showError(registerError, result?.error || 'Registration failed');
       return;
     }
 
-    alert('✅ Account created successfully! Please login.');
+    alert('✅ ' + result.message + ' Please login now.');
     registerForm.reset();
     showLogin();
   }
@@ -110,8 +128,8 @@ const app = (() => {
       email, password
     });
 
-    if (!result.success) {
-      showError(loginError, result.error || 'Login failed');
+    if (!result || !result.success) {
+      showError(loginError, result?.error || 'Login failed');
       return;
     }
 
@@ -133,41 +151,55 @@ const app = (() => {
   async function checkSession() {
     const result = await apiCall('auth.php?action=current-user', 'GET');
     
-    if (result.success) {
+    if (result && result.success) {
       currentUser = result.user;
       localStorage.setItem('user', JSON.stringify(currentUser));
     } else {
-      currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+      const stored = localStorage.getItem('user');
+      if (stored) {
+        try {
+          currentUser = JSON.parse(stored);
+        } catch (e) {
+          currentUser = null;
+        }
+      }
     }
   }
   
   async function fetchOfficials() {
     const result = await apiCall('officials.php', 'GET');
-    if (result.success) {
-      officials = result.data;
+    if (result && result.success) {
+      officials = result.data || [];
       renderOfficials();
+    } else {
+      console.error('Failed to fetch officials:', result);
     }
   }
 
   async function requestClearance(purpose) {
     const result = await apiCall('clearance.php', 'POST', { purpose });
     
-    if (result.success) {
-      alert('✅ Clearance request submitted!');
+    if (result && result.success) {
+      alert('✅ ' + result.message);
       showView('my-requests');
     } else {
-      alert('❌ ' + (result.error || 'Failed to submit clearance'));
+      alert('❌ ' + (result?.error || 'Failed to submit clearance'));
     }
   }
 
   async function fetchClearances() {
     const result = await apiCall('clearance.php', 'GET');
-    if (result.success) {
-      return result.data;
+    if (result && result.success) {
+      return result.data || [];
     }
     return [];
   }
   
+  function validateEmail(email) {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  }
+
   function showError(element, message) {
     element.textContent = message;
     element.classList.remove('hidden');
@@ -180,7 +212,7 @@ const app = (() => {
   function renderOfficials() {
     officialsList.innerHTML = '';
     
-    if (officials.length === 0) {
+    if (!officials || officials.length === 0) {
       officialsList.innerHTML = '<p>No officials found</p>';
       return;
     }
@@ -279,14 +311,19 @@ const app = (() => {
           </div>
         `;
 
-        const clearanceForm = document.getElementById('clearance-form');
-        if (clearanceForm) {
-          clearanceForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const purpose = document.getElementById('clearance-purpose').value;
-            requestClearance(purpose);
-          });
-        }
+        // Add event listener for form
+        setTimeout(() => {
+          const clearanceForm = document.getElementById('clearance-form');
+          if (clearanceForm) {
+            clearanceForm.addEventListener('submit', (e) => {
+              e.preventDefault();
+              const purpose = document.getElementById('clearance-purpose').value;
+              if (purpose.trim()) {
+                requestClearance(purpose);
+              }
+            });
+          }
+        }, 0);
         break;
 
       case 'my-requests':
@@ -305,7 +342,7 @@ const app = (() => {
 
   function renderOfficialsList() {
     let html = '<div class="officials-detail">';
-    if (officials.length === 0) {
+    if (!officials || officials.length === 0) {
       html += '<p>No officials found</p>';
     } else {
       officials.forEach(official => {
@@ -327,18 +364,20 @@ const app = (() => {
   function renderMyRequests(clearances) {
     let html = '<div class="requests-table">';
     
-    if (clearances.length === 0) {
+    if (!clearances || clearances.length === 0) {
       html += '<p>No requests yet.</p>';
     } else {
       html += '<table><thead><tr><th>Purpose</th><th>Status</th><th>Submitted</th><th>Expires</th></tr></thead><tbody>';
       clearances.forEach(req => {
         const statusBadge = `<span class="badge badge-${req.status}">${req.status.toUpperCase()}</span>`;
+        const submittedDate = new Date(req.created_at).toLocaleDateString();
+        const expiresDate = new Date(req.expires_at).toLocaleDateString();
         html += `
           <tr>
             <td>${req.purpose}</td>
             <td>${statusBadge}</td>
-            <td>${new Date(req.created_at).toLocaleDateString()}</td>
-            <td>${new Date(req.expires_at).toLocaleDateString()}</td>
+            <td>${submittedDate}</td>
+            <td>${expiresDate}</td>
           </tr>
         `;
       });
@@ -366,7 +405,6 @@ const app = (() => {
       burgerMenu.classList.add('hidden');
     }
   });
-
   
   loginBtn.addEventListener('click', (e) => {
     e.preventDefault();
@@ -381,7 +419,6 @@ const app = (() => {
   logoutBtn.addEventListener('click', () => {
     logout();
   });
-
   
   async function renderApp() {
     if (currentUser) {
@@ -401,9 +438,11 @@ const app = (() => {
   }
 
   async function init() {
+    console.log('Initializing app...');
     await checkSession();
     renderApp();
   }
+
   
   return {
     init
@@ -412,5 +451,12 @@ const app = (() => {
 
 // Initialize app on page load
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM Content Loaded');
   app.init();
 });
+
+// Also try initializing if document is already loaded
+if (document.readyState !== 'loading') {
+  console.log('Document already loaded');
+  app.init();
+}
