@@ -1,62 +1,79 @@
 <?php
-header('Content-Type: application/json');
-require_once '../db_connection.php';
+header('Content-Type: application/json; charset=utf-8');
+ob_start();
 
-$method = $_SERVER['REQUEST_METHOD'];
+require_once __DIR__ . '/../db_connection.php';
 
-// Check if user is logged in
-if (!isset($_SESSION['user_id'])) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'error' => 'Unauthorized']);
+function sendResponse($success, $data = [], $httpCode = 200) {
+    http_response_code($httpCode);
+    echo json_encode(array_merge(['success' => $success], $data));
+    ob_end_flush();
     exit;
 }
 
-// Get user's clearance requests
-if ($method === 'GET') {
-    $user_id = $_SESSION['user_id'];
-    
-    $result = $conn->query("SELECT id, purpose, status, created_at, DATE_ADD(created_at, INTERVAL 6 MONTH) as expires_at FROM clearances WHERE user_id = $user_id ORDER BY created_at DESC");
-    
-    if (!$result) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $conn->error]);
-        exit;
+try {
+    $method = $_SERVER['REQUEST_METHOD'];
+
+    // Check if user is logged in
+    if (!isset($_SESSION['user_id'])) {
+        sendResponse(false, ['error' => 'Unauthorized'], 401);
     }
 
-    $clearances = [];
-    while ($row = $result->fetch_assoc()) {
-        $clearances[] = $row;
+    // GET Clearances
+    if ($method === 'GET') {
+        $user_id = $_SESSION['user_id'];
+        
+        $stmt = $conn->prepare('SELECT id, purpose, status, created_at, DATE_ADD(created_at, INTERVAL 6 MONTH) as expires_at FROM clearances WHERE user_id = ? ORDER BY created_at DESC');
+        if (!$stmt) {
+            sendResponse(false, ['error' => $conn->error], 500);
+        }
+
+        $stmt->bind_param('i', $user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+
+        $clearances = [];
+        while ($row = $result->fetch_assoc()) {
+            $clearances[] = $row;
+        }
+        $stmt->close();
+
+        sendResponse(true, ['data' => $clearances]);
     }
 
-    echo json_encode(['success' => true, 'data' => $clearances]);
-    exit;
+    // CREATE Clearance Request
+    else if ($method === 'POST') {
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $user_id = $_SESSION['user_id'];
+        $purpose = trim($input['purpose'] ?? '');
+
+        if (!$purpose) {
+            sendResponse(false, ['error' => 'Purpose is required'], 400);
+        }
+
+        $stmt = $conn->prepare('INSERT INTO clearances (user_id, purpose, status, created_at) VALUES (?, ?, ?, NOW())');
+        if (!$stmt) {
+            sendResponse(false, ['error' => $conn->error], 500);
+        }
+
+        $status = 'pending';
+        $stmt->bind_param('iss', $user_id, $purpose, $status);
+
+        if ($stmt->execute()) {
+            $stmt->close();
+            sendResponse(true, ['message' => 'Clearance request submitted successfully', 'id' => $conn->insert_id]);
+        } else {
+            $stmt->close();
+            sendResponse(false, ['error' => $conn->error], 500);
+        }
+    }
+
+    else {
+        sendResponse(false, ['error' => 'Method not allowed'], 405);
+    }
+
+} catch (Exception $e) {
+    sendResponse(false, ['error' => $e->getMessage()], 500);
 }
-
-// Request clearance
-if ($method === 'POST') {
-    $data = json_decode(file_get_contents('php://input'), true);
-    $user_id = $_SESSION['user_id'];
-    $purpose = trim($data['purpose'] ?? '');
-
-    if (!$purpose) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Purpose is required']);
-        exit;
-    }
-
-    $stmt = $conn->prepare('INSERT INTO clearances (user_id, purpose, status, created_at) VALUES (?, ?, ?, NOW())');
-    $status = 'pending';
-    $stmt->bind_param('iss', $user_id, $purpose, $status);
-
-    if ($stmt->execute()) {
-        echo json_encode(['success' => true, 'message' => 'Clearance request submitted']);
-    } else {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $conn->error]);
-    }
-    exit;
-}
-
-http_response_code(400);
-echo json_encode(['success' => false, 'error' => 'Invalid request']);
 ?>
