@@ -1,56 +1,72 @@
 <?php
-header('Content-Type: application/json');
-require_once '../db_connection.php';
+header('Content-Type: application/json; charset=utf-8');
+ob_start();
 
-$method = $_SERVER['REQUEST_METHOD'];
+require_once __DIR__ . '/../db_connection.php';
 
-if ($method === 'GET') {
-    $result = $conn->query('SELECT id, full_name, position FROM officials ORDER BY created_at ASC');
-    
-    if (!$result) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $conn->error]);
-        exit;
-    }
-
-    $officials = [];
-    while ($row = $result->fetch_assoc()) {
-        $officials[] = $row;
-    }
-
-    echo json_encode(['success' => true, 'data' => $officials]);
+function sendResponse($success, $data = [], $httpCode = 200) {
+    http_response_code($httpCode);
+    echo json_encode(array_merge(['success' => $success], $data));
+    ob_end_flush();
     exit;
 }
 
-if ($method === 'POST') {
-    if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-        exit;
+try {
+    $method = $_SERVER['REQUEST_METHOD'];
+
+    // GET Officials
+    if ($method === 'GET') {
+        $result = $conn->query('SELECT id, full_name, position, contact_info FROM officials ORDER BY id ASC');
+        
+        if (!$result) {
+            sendResponse(false, ['error' => $conn->error], 500);
+        }
+
+        $officials = [];
+        while ($row = $result->fetch_assoc()) {
+            $officials[] = $row;
+        }
+
+        sendResponse(true, ['data' => $officials]);
     }
 
-    $data = json_decode(file_get_contents('php://input'), true);
-    $name = trim($data['full_name'] ?? '');
-    $position = trim($data['position'] ?? '');
+    // CREATE Official (Admin only)
+    else if ($method === 'POST') {
+        if (!isset($_SESSION['user_role']) || $_SESSION['user_role'] !== 'admin') {
+            sendResponse(false, ['error' => 'Unauthorized'], 403);
+        }
 
-    if (!$name || !$position) {
-        http_response_code(400);
-        echo json_encode(['success' => false, 'error' => 'Name and position are required']);
-        exit;
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $name = trim($input['full_name'] ?? '');
+        $position = trim($input['position'] ?? '');
+        $contact = trim($input['contact_info'] ?? '');
+
+        if (!$name || !$position) {
+            sendResponse(false, ['error' => 'Name and position are required'], 400);
+        }
+
+        $stmt = $conn->prepare('INSERT INTO officials (full_name, position, contact_info, created_at) VALUES (?, ?, ?, NOW())');
+        if (!$stmt) {
+            sendResponse(false, ['error' => $conn->error], 500);
+        }
+
+        $stmt->bind_param('sss', $name, $position, $contact);
+
+        if ($stmt->execute()) {
+            $stmt->close();
+            sendResponse(true, ['message' => 'Official added successfully', 'id' => $conn->insert_id]);
+        } else {
+            $stmt->close();
+            sendResponse(false, ['error' => $conn->error], 500);
+        }
     }
 
-    $stmt = $conn->prepare('INSERT INTO officials (full_name, position, created_at) VALUES (?, ?, NOW())');
-    $stmt->bind_param('ss', $name, $position);
-
-    if ($stmt->execute()) {
-        echo json_encode(['success' => true, 'message' => 'Official added']);
-    } else {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $conn->error]);
+    else {
+        sendResponse(false, ['error' => 'Method not allowed'], 405);
     }
-    exit;
+
+} catch (Exception $e) {
+    sendResponse(false, ['error' => $e->getMessage()], 500);
 }
-
-http_response_code(400);
-echo json_encode(['success' => false, 'error' => 'Invalid request']);
 ?>
